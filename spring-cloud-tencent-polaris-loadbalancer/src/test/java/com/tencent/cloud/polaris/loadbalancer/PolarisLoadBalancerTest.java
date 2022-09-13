@@ -14,10 +14,8 @@
  * CONDITIONS OF ANY KIND, either express or implied. See the License for the
  * specific language governing permissions and limitations under the License.
  */
-// CHECKSTYLE:OFF
 
 package com.tencent.cloud.polaris.loadbalancer;
-
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,7 +37,7 @@ import com.tencent.polaris.api.pojo.ServiceKey;
 import com.tencent.polaris.api.rpc.InstancesResponse;
 import com.tencent.polaris.router.api.core.RouterAPI;
 import com.tencent.polaris.router.api.rpc.ProcessLoadBalanceResponse;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -51,7 +49,6 @@ import org.springframework.cloud.netflix.ribbon.StaticServerList;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-
 
 /**
  * Test for {@link PolarisLoadBalancer}.
@@ -104,8 +101,8 @@ public class PolarisLoadBalancerTest {
 
 			String host = balancer.choose(null);
 
-			Assert.assertNotNull(host);
-			Assert.assertEquals("127.0.0.1:8080", host);
+			Assertions.assertThat(host).isNotNull();
+			Assertions.assertThat(host).isEqualTo("127.0.0.1:8080");
 		}
 	}
 
@@ -136,7 +133,7 @@ public class PolarisLoadBalancerTest {
 					consumerAPI, properties);
 
 			String host = balancer.choose(null);
-			Assert.assertEquals("127.0.0.1:8080", host);
+			Assertions.assertThat(host).isEqualTo("127.0.0.1:8080");
 		}
 	}
 

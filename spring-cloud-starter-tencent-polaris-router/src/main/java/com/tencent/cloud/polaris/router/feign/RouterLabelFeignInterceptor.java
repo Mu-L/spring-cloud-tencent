@@ -20,7 +20,6 @@ package com.tencent.cloud.polaris.router.feign;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,13 +27,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.tencent.cloud.common.constant.RouterConstants;
 import com.tencent.cloud.common.metadata.MetadataContext;
 import com.tencent.cloud.common.metadata.MetadataContextHolder;
-import com.tencent.cloud.common.metadata.config.MetadataLocalProperties;
+import com.tencent.cloud.common.metadata.StaticMetadataManager;
 import com.tencent.cloud.common.util.JacksonUtils;
-import com.tencent.cloud.polaris.router.RouterConstants;
 import com.tencent.cloud.polaris.router.RouterRuleLabelResolver;
-import com.tencent.cloud.polaris.router.spi.RouterLabelResolver;
+import com.tencent.cloud.polaris.router.spi.FeignRouterLabelResolver;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import org.slf4j.Logger;
@@ -42,6 +41,8 @@ import org.slf4j.LoggerFactory;
 
 import org.springframework.core.Ordered;
 import org.springframework.util.CollectionUtils;
+
+import static com.tencent.cloud.common.constant.ContextConstant.UTF_8;
 
 /**
  * Resolver labels from request.
@@ -51,12 +52,12 @@ import org.springframework.util.CollectionUtils;
 public class RouterLabelFeignInterceptor implements RequestInterceptor, Ordered {
 	private static final Logger LOGGER = LoggerFactory.getLogger(RouterLabelFeignInterceptor.class);
 
-	private final List<RouterLabelResolver> routerLabelResolvers;
-	private final MetadataLocalProperties metadataLocalProperties;
+	private final List<FeignRouterLabelResolver> routerLabelResolvers;
+	private final StaticMetadataManager staticMetadataManager;
 	private final RouterRuleLabelResolver routerRuleLabelResolver;
 
-	public RouterLabelFeignInterceptor(List<RouterLabelResolver> routerLabelResolvers,
-			MetadataLocalProperties metadataLocalProperties,
+	public RouterLabelFeignInterceptor(List<FeignRouterLabelResolver> routerLabelResolvers,
+			StaticMetadataManager staticMetadataManager,
 			RouterRuleLabelResolver routerRuleLabelResolver) {
 		if (!CollectionUtils.isEmpty(routerLabelResolvers)) {
 			routerLabelResolvers.sort(Comparator.comparingInt(Ordered::getOrder));
@@ -65,7 +66,7 @@ public class RouterLabelFeignInterceptor implements RequestInterceptor, Ordered 
 		else {
 			this.routerLabelResolvers = null;
 		}
-		this.metadataLocalProperties = metadataLocalProperties;
+		this.staticMetadataManager = staticMetadataManager;
 		this.routerRuleLabelResolver = routerRuleLabelResolver;
 	}
 
@@ -77,18 +78,20 @@ public class RouterLabelFeignInterceptor implements RequestInterceptor, Ordered 
 	@Override
 	public void apply(RequestTemplate requestTemplate) {
 		// local service labels
-		Map<String, String> labels = new HashMap<>(metadataLocalProperties.getContent());
+		Map<String, String> labels = new HashMap<>(staticMetadataManager.getMergedStaticMetadata());
 
 		// labels from rule expression
 		String peerServiceName = requestTemplate.feignTarget().name();
-		Map<String, String> ruleExpressionLabels = getRuleExpressionLabels(requestTemplate, peerServiceName);
+		Set<String> expressionLabelKeys = routerRuleLabelResolver.getExpressionLabelKeys(MetadataContext.LOCAL_NAMESPACE,
+				MetadataContext.LOCAL_SERVICE, peerServiceName);
+		Map<String, String> ruleExpressionLabels = getRuleExpressionLabels(requestTemplate, expressionLabelKeys);
 		labels.putAll(ruleExpressionLabels);
 
-		// labels from request
+		// labels from custom spi
 		if (!CollectionUtils.isEmpty(routerLabelResolvers)) {
 			routerLabelResolvers.forEach(resolver -> {
 				try {
-					Map<String, String> customResolvedLabels = resolver.resolve(requestTemplate);
+					Map<String, String> customResolvedLabels = resolver.resolve(requestTemplate, expressionLabelKeys);
 					if (!CollectionUtils.isEmpty(customResolvedLabels)) {
 						labels.putAll(customResolvedLabels);
 					}
@@ -105,24 +108,17 @@ public class RouterLabelFeignInterceptor implements RequestInterceptor, Ordered 
 		labels.putAll(transitiveLabels);
 
 		// pass label by header
-		if (labels.size() == 0) {
-			requestTemplate.header(RouterConstants.ROUTER_LABEL_HEADER);
-			return;
-		}
-
 		String encodedLabelsContent;
 		try {
-			encodedLabelsContent = URLEncoder.encode(JacksonUtils.serialize2Json(labels), StandardCharsets.UTF_8.name());
+			encodedLabelsContent = URLEncoder.encode(JacksonUtils.serialize2Json(labels), UTF_8);
 		}
 		catch (UnsupportedEncodingException e) {
-			throw new RuntimeException("unsupported charset exception " + StandardCharsets.UTF_8.name());
+			throw new RuntimeException("unsupported charset exception " + UTF_8);
 		}
 		requestTemplate.header(RouterConstants.ROUTER_LABEL_HEADER, encodedLabelsContent);
 	}
 
-	private Map<String, String> getRuleExpressionLabels(RequestTemplate requestTemplate, String peerService) {
-		Set<String> labelKeys = routerRuleLabelResolver.getExpressionLabelKeys(MetadataContext.LOCAL_NAMESPACE,
-				MetadataContext.LOCAL_SERVICE, peerService);
+	private Map<String, String> getRuleExpressionLabels(RequestTemplate requestTemplate, Set<String> labelKeys) {
 
 		if (CollectionUtils.isEmpty(labelKeys)) {
 			return Collections.emptyMap();

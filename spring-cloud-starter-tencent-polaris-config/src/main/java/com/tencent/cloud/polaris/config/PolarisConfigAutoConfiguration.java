@@ -18,14 +18,26 @@
 
 package com.tencent.cloud.polaris.config;
 
-import com.tencent.cloud.polaris.config.adapter.PolarisPropertySourceAutoRefresher;
+import com.tencent.cloud.polaris.config.adapter.AffectedConfigurationPropertiesRebinder;
+import com.tencent.cloud.polaris.config.adapter.PolarisConfigPropertyRefresher;
 import com.tencent.cloud.polaris.config.adapter.PolarisPropertySourceManager;
+import com.tencent.cloud.polaris.config.adapter.PolarisRefreshAffectedContextRefresher;
+import com.tencent.cloud.polaris.config.adapter.PolarisRefreshEntireContextRefresher;
 import com.tencent.cloud.polaris.config.annotation.PolarisConfigAnnotationProcessor;
+import com.tencent.cloud.polaris.config.condition.ConditionalOnReflectRefreshType;
 import com.tencent.cloud.polaris.config.config.PolarisConfigProperties;
 import com.tencent.cloud.polaris.config.listener.PolarisConfigChangeEventListener;
+import com.tencent.cloud.polaris.config.spring.annotation.SpringValueProcessor;
+import com.tencent.cloud.polaris.config.spring.property.PlaceholderHelper;
+import com.tencent.cloud.polaris.config.spring.property.SpringValueRegistry;
 import com.tencent.cloud.polaris.context.ConditionalOnPolarisEnabled;
 
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.SearchStrategy;
+import org.springframework.cloud.context.properties.ConfigurationPropertiesBeans;
+import org.springframework.cloud.context.properties.ConfigurationPropertiesRebinder;
 import org.springframework.cloud.context.refresh.ContextRefresher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,18 +49,8 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnPolarisEnabled
-@ConditionalOnProperty(value = "spring.cloud.polaris.config.enabled",
-		matchIfMissing = true)
+@ConditionalOnProperty(value = "spring.cloud.polaris.config.enabled", matchIfMissing = true)
 public class PolarisConfigAutoConfiguration {
-
-	@Bean
-	public PolarisPropertySourceAutoRefresher polarisPropertySourceAutoRefresher(
-			PolarisConfigProperties polarisConfigProperties,
-			PolarisPropertySourceManager polarisPropertySourceManager,
-			ContextRefresher contextRefresher) {
-		return new PolarisPropertySourceAutoRefresher(polarisConfigProperties,
-				polarisPropertySourceManager, contextRefresher);
-	}
 
 	@Bean
 	public PolarisConfigAnnotationProcessor polarisConfigAnnotationProcessor() {
@@ -58,5 +60,49 @@ public class PolarisConfigAutoConfiguration {
 	@Bean
 	public PolarisConfigChangeEventListener polarisConfigChangeEventListener() {
 		return new PolarisConfigChangeEventListener();
+	}
+
+	@Bean
+	@ConditionalOnMissingBean(search = SearchStrategy.CURRENT)
+	@ConditionalOnReflectRefreshType
+	public ConfigurationPropertiesRebinder affectedConfigurationPropertiesRebinder(
+			ConfigurationPropertiesBeans beans) {
+		return new AffectedConfigurationPropertiesRebinder(beans);
+	}
+
+	@Bean
+	@ConditionalOnMissingBean(search = SearchStrategy.CURRENT)
+	public PolarisConfigPropertyRefresher polarisRefreshContextPropertySourceAutoRefresher(PolarisConfigProperties polarisConfigProperties,
+			PolarisPropertySourceManager polarisPropertySourceManager, ContextRefresher contextRefresher) {
+		return new PolarisRefreshEntireContextRefresher(polarisConfigProperties, polarisPropertySourceManager, contextRefresher);
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnReflectRefreshType
+	@AutoConfigureBefore(PolarisConfigAutoConfiguration.class)
+	public static class PolarisReflectRefresherAutoConfiguration {
+		@Bean
+		public SpringValueRegistry springValueRegistry() {
+			return new SpringValueRegistry();
+		}
+
+		@Bean
+		public PlaceholderHelper placeholderHelper() {
+			return new PlaceholderHelper();
+		}
+
+		@Bean
+		public SpringValueProcessor springValueProcessor(PlaceholderHelper placeholderHelper,
+				SpringValueRegistry springValueRegistry, PolarisConfigProperties polarisConfigProperties) {
+			return new SpringValueProcessor(placeholderHelper, springValueRegistry, polarisConfigProperties);
+		}
+
+		@Bean
+		public PolarisConfigPropertyRefresher polarisReflectPropertySourceAutoRefresher(PolarisConfigProperties polarisConfigProperties,
+				PolarisPropertySourceManager polarisPropertySourceManager, SpringValueRegistry springValueRegistry,
+				PlaceholderHelper placeholderHelper) {
+			return new PolarisRefreshAffectedContextRefresher(polarisConfigProperties, polarisPropertySourceManager,
+					springValueRegistry, placeholderHelper);
+		}
 	}
 }

@@ -28,7 +28,7 @@ import javax.annotation.PostConstruct;
 
 import com.google.common.collect.Maps;
 import com.tencent.cloud.common.metadata.MetadataContext;
-import com.tencent.cloud.common.util.ExpressionLabelUtils;
+import com.tencent.cloud.common.util.expresstion.SpringWebExpressionLabelUtils;
 import com.tencent.cloud.polaris.ratelimit.RateLimitRuleLabelResolver;
 import com.tencent.cloud.polaris.ratelimit.config.PolarisRateLimitProperties;
 import com.tencent.cloud.polaris.ratelimit.constant.RateLimitConstant;
@@ -60,7 +60,7 @@ import static com.tencent.cloud.polaris.ratelimit.constant.RateLimitConstant.LAB
  */
 public class QuotaCheckReactiveFilter implements WebFilter, Ordered {
 
-	private static final Logger LOG = LoggerFactory.getLogger(QuotaCheckReactiveFilter.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(QuotaCheckReactiveFilter.class);
 
 	private final LimitAPI limitAPI;
 
@@ -98,7 +98,7 @@ public class QuotaCheckReactiveFilter implements WebFilter, Ordered {
 		String localService = MetadataContext.LOCAL_SERVICE;
 
 		Map<String, String> labels = getRequestLabels(exchange, localNamespace, localService);
-
+		long waitMs = -1;
 		try {
 			String path = exchange.getRequest().getURI().getPath();
 			QuotaResponse quotaResponse = QuotaCheckUtils.getQuota(limitAPI,
@@ -114,16 +114,22 @@ public class QuotaCheckReactiveFilter implements WebFilter, Ordered {
 			}
 			// Unirate
 			if (quotaResponse.getCode() == QuotaResultCode.QuotaResultOk && quotaResponse.getWaitMs() > 0) {
-				return Mono.delay(Duration.ofMillis(quotaResponse.getWaitMs())).flatMap(e -> chain.filter(exchange));
+				LOGGER.debug("The request of [{}] will waiting for {}ms.", path, quotaResponse.getWaitMs());
+				waitMs = quotaResponse.getWaitMs();
 			}
 		}
 		catch (Throwable t) {
 			// An exception occurs in the rate limiting API call,
 			// which should not affect the call of the business process.
-			LOG.error("fail to invoke getQuota, service is " + localService, t);
+			LOGGER.error("fail to invoke getQuota, service is " + localService, t);
 		}
 
-		return chain.filter(exchange);
+		if (waitMs > 0) {
+			return Mono.delay(Duration.ofMillis(waitMs)).flatMap(e -> chain.filter(exchange));
+		}
+		else {
+			return chain.filter(exchange);
+		}
 	}
 
 	private Map<String, String> getRequestLabels(ServerWebExchange exchange, String localNamespace, String localService) {
@@ -152,7 +158,7 @@ public class QuotaCheckReactiveFilter implements WebFilter, Ordered {
 				return labelResolver.resolve(exchange);
 			}
 			catch (Throwable e) {
-				LOG.error("resolve custom label failed. resolver = {}", labelResolver.getClass().getName(), e);
+				LOGGER.error("resolve custom label failed. resolver = {}", labelResolver.getClass().getName(), e);
 			}
 		}
 		return Maps.newHashMap();
@@ -160,6 +166,6 @@ public class QuotaCheckReactiveFilter implements WebFilter, Ordered {
 
 	private Map<String, String> getRuleExpressionLabels(ServerWebExchange exchange, String namespace, String service) {
 		Set<String> expressionLabels = rateLimitRuleLabelResolver.getExpressionLabelKeys(namespace, service);
-		return ExpressionLabelUtils.resolve(exchange, expressionLabels);
+		return SpringWebExpressionLabelUtils.resolve(exchange, expressionLabels);
 	}
 }

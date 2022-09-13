@@ -15,9 +15,12 @@
  * specific language governing permissions and limitations under the License.
  *
  */
+
 package com.tencent.cloud.polaris.config.config;
 
 import java.util.List;
+
+import com.tencent.cloud.polaris.config.enums.RefreshType;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -49,6 +52,13 @@ public class PolarisConfigProperties {
 	 * is updated
 	 */
 	private boolean autoRefresh = true;
+
+	private boolean shutdownIfConnectToConfigServerFailed = true;
+
+	/**
+	 * Attribute refresh type.
+	 */
+	private RefreshType refreshType = RefreshType.REFLECT;
 
 	/**
 	 * List of injected configuration files.
@@ -85,6 +95,22 @@ public class PolarisConfigProperties {
 
 	public void setAutoRefresh(boolean autoRefresh) {
 		this.autoRefresh = autoRefresh;
+	}
+
+	public boolean isShutdownIfConnectToConfigServerFailed() {
+		return shutdownIfConnectToConfigServerFailed;
+	}
+
+	public void setShutdownIfConnectToConfigServerFailed(boolean shutdownIfConnectToConfigServerFailed) {
+		this.shutdownIfConnectToConfigServerFailed = shutdownIfConnectToConfigServerFailed;
+	}
+
+	public RefreshType getRefreshType() {
+		return refreshType;
+	}
+
+	public void setRefreshType(RefreshType refreshType) {
+		this.refreshType = refreshType;
 	}
 
 	public List<ConfigFileGroup> getGroups() {

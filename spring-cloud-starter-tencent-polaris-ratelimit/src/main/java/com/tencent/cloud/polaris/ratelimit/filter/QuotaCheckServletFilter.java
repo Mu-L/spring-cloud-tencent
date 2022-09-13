@@ -31,7 +31,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import com.tencent.cloud.common.metadata.MetadataContext;
-import com.tencent.cloud.common.util.ExpressionLabelUtils;
+import com.tencent.cloud.common.util.expresstion.ServletExpressionLabelUtils;
 import com.tencent.cloud.polaris.ratelimit.RateLimitRuleLabelResolver;
 import com.tencent.cloud.polaris.ratelimit.config.PolarisRateLimitProperties;
 import com.tencent.cloud.polaris.ratelimit.constant.RateLimitConstant;
@@ -46,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.springframework.core.annotation.Order;
+import org.springframework.lang.NonNull;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import static com.tencent.cloud.polaris.ratelimit.constant.RateLimitConstant.LABEL_METHOD;
@@ -58,8 +59,11 @@ import static com.tencent.cloud.polaris.ratelimit.constant.RateLimitConstant.LAB
 @Order(RateLimitConstant.FILTER_ORDER)
 public class QuotaCheckServletFilter extends OncePerRequestFilter {
 
+	/**
+	 * Default Filter Registration Bean Name Defined .
+	 */
+	public static final String QUOTA_FILTER_BEAN_NAME = "quotaFilterRegistrationBean";
 	private static final Logger LOG = LoggerFactory.getLogger(QuotaCheckServletFilter.class);
-
 	private final LimitAPI limitAPI;
 
 	private final PolarisRateLimiterLabelServletResolver labelResolver;
@@ -86,7 +90,8 @@ public class QuotaCheckServletFilter extends OncePerRequestFilter {
 	}
 
 	@Override
-	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+	protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
+			@NonNull FilterChain filterChain)
 			throws ServletException, IOException {
 		String localNamespace = MetadataContext.LOCAL_NAMESPACE;
 		String localService = MetadataContext.LOCAL_SERVICE;
@@ -105,17 +110,18 @@ public class QuotaCheckServletFilter extends OncePerRequestFilter {
 			}
 			// Unirate
 			if (quotaResponse.getCode() == QuotaResultCode.QuotaResultOk && quotaResponse.getWaitMs() > 0) {
+				LOG.debug("The request of [{}] will waiting for {}ms.", request.getRequestURI(), quotaResponse.getWaitMs());
 				Thread.sleep(quotaResponse.getWaitMs());
 			}
 
-			filterChain.doFilter(request, response);
 		}
 		catch (Throwable t) {
 			// An exception occurs in the rate limiting API call,
 			// which should not affect the call of the business process.
 			LOG.error("fail to invoke getQuota, service is " + localService, t);
-			filterChain.doFilter(request, response);
 		}
+
+		filterChain.doFilter(request, response);
 	}
 
 	private Map<String, String> getRequestLabels(HttpServletRequest request, String localNamespace, String localService) {
@@ -152,6 +158,6 @@ public class QuotaCheckServletFilter extends OncePerRequestFilter {
 
 	private Map<String, String> getRuleExpressionLabels(HttpServletRequest request, String namespace, String service) {
 		Set<String> expressionLabels = rateLimitRuleLabelResolver.getExpressionLabelKeys(namespace, service);
-		return ExpressionLabelUtils.resolve(request, expressionLabels);
+		return ServletExpressionLabelUtils.resolve(request, expressionLabels);
 	}
 }

@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 
 
 /**
- * test for {@link StaticMetadataManager}
+ * test for {@link StaticMetadataManager}.
  *@author lepdou 2022-06-27
  */
 @RunWith(MockitoJUnitRunner.class)
@@ -127,9 +127,6 @@ public class StaticMetadataManagerTest {
 		Assert.assertEquals("v1", metadata.get("k1"));
 		Assert.assertEquals("v22", metadata.get("k2"));
 		Assert.assertEquals("v33", metadata.get("k3"));
-		Assert.assertEquals("zone2", metadata.get("zone"));
-		Assert.assertEquals("region1", metadata.get("region"));
-		Assert.assertEquals("campus1", metadata.get("campus"));
 
 		Map<String, String> transitiveMetadata = metadataManager.getMergedStaticTransitiveMetadata();
 		Assert.assertEquals(2, transitiveMetadata.size());

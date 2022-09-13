@@ -41,6 +41,18 @@
       "defaultValue": "true",
       "description": "Whether to connect to a remote server, suitable for local development mode.",
       "sourceType": "com.tencent.cloud.polaris.config.config.PolarisConfigProperties"
+    },
+    {
+      "name": "spring.cloud.polaris.config.refresh-type",
+      "type": "com.tencent.cloud.polaris.config.enums.RefreshType",
+      "defaultValue": "reflect",
+      "description": "Attribute refresh type when config updated. refresh_context or reflect."
+    },
+    {
+      "name": "spring.cloud.polaris.config.shutdown-if-connect-to-config-server-failed",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether shutdown server if connect to config server failed."
     }
   ]
 }

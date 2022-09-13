@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import com.tencent.cloud.common.util.ExpressionLabelUtils;
+import com.tencent.cloud.common.util.expresstion.ExpressionLabelUtils;
 import feign.RequestTemplate;
 import org.apache.commons.lang.StringUtils;
 
@@ -78,7 +78,6 @@ public final class FeignExpressionLabelUtils {
 	public static String getHeaderValue(RequestTemplate request, String key) {
 		Map<String, Collection<String>> headers = request.headers();
 		return ExpressionLabelUtils.getFirstValue(headers, key);
-
 	}
 
 	public static String getQueryValue(RequestTemplate request, String key) {

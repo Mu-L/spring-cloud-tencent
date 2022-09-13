@@ -20,11 +20,11 @@ package com.tencent.cloud.polaris.router.beanprocessor;
 
 import java.util.List;
 
-import com.tencent.cloud.common.metadata.config.MetadataLocalProperties;
+import com.tencent.cloud.common.metadata.StaticMetadataManager;
 import com.tencent.cloud.common.util.BeanFactoryUtils;
 import com.tencent.cloud.polaris.router.RouterRuleLabelResolver;
 import com.tencent.cloud.polaris.router.resttemplate.PolarisLoadBalancerInterceptor;
-import com.tencent.cloud.polaris.router.spi.RouterLabelResolver;
+import com.tencent.cloud.polaris.router.spi.SpringWebRouterLabelResolver;
 
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
@@ -33,6 +33,7 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerInterceptor;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerRequestFactory;
+import org.springframework.lang.NonNull;
 
 /**
  * Replace LoadBalancerInterceptor with PolarisLoadBalancerInterceptor.
@@ -45,23 +46,23 @@ public class LoadBalancerInterceptorBeanPostProcessor implements BeanPostProcess
 	private BeanFactory factory;
 
 	@Override
-	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+	public void setBeanFactory(@NonNull BeanFactory beanFactory) throws BeansException {
 		this.factory = beanFactory;
 	}
 
 	@Override
-	public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+	public Object postProcessBeforeInitialization(@NonNull Object bean, @NonNull String beanName) throws BeansException {
 		if (bean instanceof LoadBalancerInterceptor) {
 			// Support rest template router.
 			// Replaces the default LoadBalancerInterceptor implementation and returns a custom PolarisLoadBalancerInterceptor
 			LoadBalancerRequestFactory requestFactory = this.factory.getBean(LoadBalancerRequestFactory.class);
 			LoadBalancerClient loadBalancerClient = this.factory.getBean(LoadBalancerClient.class);
-			List<RouterLabelResolver> routerLabelResolvers = BeanFactoryUtils.getBeans(factory, RouterLabelResolver.class);
-			MetadataLocalProperties metadataLocalProperties = this.factory.getBean(MetadataLocalProperties.class);
+			List<SpringWebRouterLabelResolver> routerLabelResolvers = BeanFactoryUtils.getBeans(factory, SpringWebRouterLabelResolver.class);
+			StaticMetadataManager staticMetadataManager = this.factory.getBean(StaticMetadataManager.class);
 			RouterRuleLabelResolver routerRuleLabelResolver = this.factory.getBean(RouterRuleLabelResolver.class);
 
 			return new PolarisLoadBalancerInterceptor(loadBalancerClient, requestFactory,
-					routerLabelResolvers, metadataLocalProperties, routerRuleLabelResolver);
+					routerLabelResolvers, staticMetadataManager, routerRuleLabelResolver);
 		}
 		return bean;
 	}

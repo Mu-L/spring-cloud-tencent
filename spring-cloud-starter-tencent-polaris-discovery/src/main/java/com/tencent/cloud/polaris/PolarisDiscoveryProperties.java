@@ -29,7 +29,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.env.Environment;
+
+import static com.tencent.cloud.common.constant.ContextConstant.DEFAULT_REGISTRY_HEARTBEAT_TIME_INTERVAL;
 
 /**
  * Properties for Polaris.
@@ -97,6 +98,13 @@ public class PolarisDiscoveryProperties {
 	private Boolean heartbeatEnabled = true;
 
 	/**
+	 * Heartbeat interval ( 0 < interval <= 60).
+	 * Time unit: second. Default: 5.
+	 * @see ContextConstant#DEFAULT_REGISTRY_HEARTBEAT_TIME_INTERVAL
+	 */
+	private Integer heartbeatInterval = DEFAULT_REGISTRY_HEARTBEAT_TIME_INTERVAL;
+
+	/**
 	 * Custom health check url to override default.
 	 */
 	@Value("${spring.cloud.polaris.discovery.health-check-url:}")
@@ -106,9 +114,6 @@ public class PolarisDiscoveryProperties {
 	 * Millis interval of refresh of service info list. Default: 60000.
 	 */
 	private Long serviceListRefreshInterval = 60000L;
-
-	@Autowired
-	private Environment environment;
 
 	public boolean isHeartbeatEnabled() {
 		return heartbeatEnabled;
@@ -206,6 +211,17 @@ public class PolarisDiscoveryProperties {
 		this.serviceListRefreshInterval = serviceListRefreshInterval;
 	}
 
+	public Integer getHeartbeatInterval() {
+		if (this.heartbeatEnabled && (this.heartbeatInterval <= 0 || this.heartbeatInterval > 60)) {
+			heartbeatInterval = DEFAULT_REGISTRY_HEARTBEAT_TIME_INTERVAL;
+		}
+		return heartbeatInterval;
+	}
+
+	public void setHeartbeatInterval(Integer heartbeatInterval) {
+		this.heartbeatInterval = heartbeatInterval;
+	}
+
 	@Override
 	public String toString() {
 		return "PolarisDiscoveryProperties{" +
@@ -219,6 +235,7 @@ public class PolarisDiscoveryProperties {
 				", enabled=" + enabled +
 				", registerEnabled=" + registerEnabled +
 				", heartbeatEnabled=" + heartbeatEnabled +
+				", heartbeatInterval=" + heartbeatInterval +
 				", healthCheckUrl='" + healthCheckUrl + '\'' +
 				", serviceListRefreshInterval=" + serviceListRefreshInterval +
 				'}';
@@ -232,7 +249,7 @@ public class PolarisDiscoveryProperties {
 
 	private static class PolarisDiscoveryConfigModifier implements PolarisConfigModifier {
 
-		private final String ID = "polaris";
+		private static final String ID = "polaris";
 
 		@Autowired(required = false)
 		private PolarisDiscoveryProperties polarisDiscoveryProperties;
@@ -256,6 +273,5 @@ public class PolarisDiscoveryProperties {
 		public int getOrder() {
 			return ContextConstant.ModifierOrder.LAST;
 		}
-
 	}
 }

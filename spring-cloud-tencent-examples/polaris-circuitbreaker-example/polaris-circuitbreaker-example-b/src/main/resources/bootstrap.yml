@@ -8,4 +8,6 @@ spring:
       address: grpc://183.47.111.80:8091
       namespace: default
       enabled: true
-is-throw-runtime-exception: false
+      stat:
+        enabled: true
+        port: 28082

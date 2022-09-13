@@ -18,7 +18,6 @@
 
 package com.tencent.cloud.polaris.router.scg;
 
-
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,11 +27,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.tencent.cloud.common.metadata.MetadataContext;
 import com.tencent.cloud.common.metadata.MetadataContextHolder;
-import com.tencent.cloud.common.metadata.config.MetadataLocalProperties;
+import com.tencent.cloud.common.metadata.StaticMetadataManager;
 import com.tencent.cloud.common.util.ApplicationContextAwareUtils;
 import com.tencent.cloud.polaris.router.PolarisRouterContext;
 import com.tencent.cloud.polaris.router.RouterRuleLabelResolver;
-import com.tencent.cloud.polaris.router.spi.RouterLabelResolver;
+import com.tencent.cloud.polaris.router.spi.SpringWebRouterLabelResolver;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -69,11 +68,11 @@ public class PolarisLoadBalancerClientFilterTest {
 	private static MockedStatic<ApplicationContextAwareUtils> mockedApplicationContextAwareUtils;
 	private static MockedStatic<MetadataContextHolder> mockedMetadataContextHolder;
 	@Mock
-	private MetadataLocalProperties metadataLocalProperties;
+	private StaticMetadataManager staticMetadataManager;
 	@Mock
 	private RouterRuleLabelResolver routerRuleLabelResolver;
 	@Mock
-	private RouterLabelResolver routerLabelResolver;
+	private SpringWebRouterLabelResolver routerLabelResolver;
 	@Mock
 	private LoadBalancerClient loadBalancerClient;
 	@Mock
@@ -106,12 +105,12 @@ public class PolarisLoadBalancerClientFilterTest {
 	@Test
 	public void testGenRouterContext() {
 		PolarisLoadBalancerClientFilter polarisLoadBalancerClientFilter = new PolarisLoadBalancerClientFilter(
-				loadBalancerClient, loadBalancerProperties, metadataLocalProperties, routerRuleLabelResolver,
+				loadBalancerClient, loadBalancerProperties, staticMetadataManager, routerRuleLabelResolver,
 				Lists.newArrayList(routerLabelResolver));
 
 		Map<String, String> localMetadata = new HashMap<>();
 		localMetadata.put("env", "blue");
-		when(metadataLocalProperties.getContent()).thenReturn(localMetadata);
+		when(staticMetadataManager.getMergedStaticMetadata()).thenReturn(localMetadata);
 
 		Set<String> expressionLabelKeys = Sets.newHashSet("${http.header.k1}", "${http.query.userid}");
 		when(routerRuleLabelResolver.getExpressionLabelKeys(anyString(), anyString(), anyString())).thenReturn(expressionLabelKeys);
@@ -124,11 +123,11 @@ public class PolarisLoadBalancerClientFilterTest {
 
 		Map<String, String> customMetadata = new HashMap<>();
 		customMetadata.put("k2", "v2");
-		when(routerLabelResolver.resolve(webExchange)).thenReturn(customMetadata);
+		when(routerLabelResolver.resolve(webExchange, expressionLabelKeys)).thenReturn(customMetadata);
 
 		PolarisRouterContext routerContext = polarisLoadBalancerClientFilter.genRouterContext(webExchange, calleeService);
 
-		Map<String, String> routerLabels = routerContext.getLabels(PolarisRouterContext.RULE_ROUTER_LABELS);
+		Map<String, String> routerLabels = routerContext.getLabels(PolarisRouterContext.ROUTER_LABELS);
 		Assert.assertEquals("v1", routerLabels.get("${http.header.k1}"));
 		Assert.assertEquals("zhangsan", routerLabels.get("${http.query.userid}"));
 		Assert.assertEquals("blue", routerLabels.get("env"));
@@ -139,7 +138,7 @@ public class PolarisLoadBalancerClientFilterTest {
 	@Test
 	public void testChooseInstanceWithoutRibbon() {
 		PolarisLoadBalancerClientFilter polarisLoadBalancerClientFilter = new PolarisLoadBalancerClientFilter(
-				loadBalancerClient, loadBalancerProperties, metadataLocalProperties, routerRuleLabelResolver,
+				loadBalancerClient, loadBalancerProperties, staticMetadataManager, routerRuleLabelResolver,
 				Lists.newArrayList(routerLabelResolver));
 
 		String url = "/" + calleeService + "/users";
@@ -153,7 +152,7 @@ public class PolarisLoadBalancerClientFilterTest {
 		polarisLoadBalancerClientFilter.choose(webExchange);
 
 		verify(loadBalancerClient).choose(calleeService);
-		verify(metadataLocalProperties, times(0)).getContent();
+		verify(staticMetadataManager, times(0)).getMergedStaticMetadata();
 	}
 
 	@Test
@@ -161,12 +160,12 @@ public class PolarisLoadBalancerClientFilterTest {
 		RibbonLoadBalancerClient ribbonLoadBalancerClient = Mockito.mock(RibbonLoadBalancerClient.class);
 
 		PolarisLoadBalancerClientFilter polarisLoadBalancerClientFilter = new PolarisLoadBalancerClientFilter(
-				ribbonLoadBalancerClient, loadBalancerProperties, metadataLocalProperties, routerRuleLabelResolver,
+				ribbonLoadBalancerClient, loadBalancerProperties, staticMetadataManager, routerRuleLabelResolver,
 				Lists.newArrayList(routerLabelResolver));
 
 		Map<String, String> localMetadata = new HashMap<>();
 		localMetadata.put("env", "blue");
-		when(metadataLocalProperties.getContent()).thenReturn(localMetadata);
+		when(staticMetadataManager.getMergedStaticMetadata()).thenReturn(localMetadata);
 
 		Set<String> expressionLabelKeys = Sets.newHashSet("${http.header.k1}", "${http.query.userid}");
 		when(routerRuleLabelResolver.getExpressionLabelKeys(anyString(), anyString(), anyString())).thenReturn(expressionLabelKeys);
@@ -181,11 +180,11 @@ public class PolarisLoadBalancerClientFilterTest {
 
 		Map<String, String> customMetadata = new HashMap<>();
 		customMetadata.put("k2", "v2");
-		when(routerLabelResolver.resolve(webExchange)).thenReturn(customMetadata);
+		when(routerLabelResolver.resolve(webExchange, expressionLabelKeys)).thenReturn(customMetadata);
 
 		polarisLoadBalancerClientFilter.choose(webExchange);
 
 		verify(ribbonLoadBalancerClient).choose(anyString(), any());
-		verify(metadataLocalProperties, times(1)).getContent();
+		verify(staticMetadataManager, times(1)).getMergedStaticMetadata();
 	}
 }

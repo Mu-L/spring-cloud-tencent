@@ -28,11 +28,11 @@ import java.util.Set;
 
 import com.tencent.cloud.common.metadata.MetadataContext;
 import com.tencent.cloud.common.metadata.MetadataContextHolder;
-import com.tencent.cloud.common.metadata.config.MetadataLocalProperties;
-import com.tencent.cloud.common.util.ExpressionLabelUtils;
+import com.tencent.cloud.common.metadata.StaticMetadataManager;
+import com.tencent.cloud.common.util.expresstion.SpringWebExpressionLabelUtils;
 import com.tencent.cloud.polaris.router.PolarisRouterContext;
 import com.tencent.cloud.polaris.router.RouterRuleLabelResolver;
-import com.tencent.cloud.polaris.router.spi.RouterLabelResolver;
+import com.tencent.cloud.polaris.router.spi.SpringWebRouterLabelResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,18 +55,18 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 public class PolarisLoadBalancerClientFilter extends LoadBalancerClientFilter {
 	private final static Logger LOGGER = LoggerFactory.getLogger(PolarisLoadBalancerClientFilter.class);
 
-	private final MetadataLocalProperties metadataLocalProperties;
+	private final StaticMetadataManager staticMetadataManager;
 	private final RouterRuleLabelResolver routerRuleLabelResolver;
-	private final List<RouterLabelResolver> routerLabelResolvers;
+	private final List<SpringWebRouterLabelResolver> routerLabelResolvers;
 
 	private final boolean isRibbonLoadBalanceClient;
 
 	public PolarisLoadBalancerClientFilter(LoadBalancerClient loadBalancer, LoadBalancerProperties properties,
-			MetadataLocalProperties metadataLocalProperties,
+			StaticMetadataManager staticMetadataManager,
 			RouterRuleLabelResolver routerRuleLabelResolver,
-			List<RouterLabelResolver> routerLabelResolvers) {
+			List<SpringWebRouterLabelResolver> routerLabelResolvers) {
 		super(loadBalancer, properties);
-		this.metadataLocalProperties = metadataLocalProperties;
+		this.staticMetadataManager = staticMetadataManager;
 		this.routerRuleLabelResolver = routerRuleLabelResolver;
 
 		if (!CollectionUtils.isEmpty(routerLabelResolvers)) {
@@ -96,10 +96,12 @@ public class PolarisLoadBalancerClientFilter extends LoadBalancerClientFilter {
 
 	PolarisRouterContext genRouterContext(ServerWebExchange exchange, String peerServiceName) {
 		// local service labels
-		Map<String, String> labels = new HashMap<>(metadataLocalProperties.getContent());
+		Map<String, String> labels = new HashMap<>(staticMetadataManager.getMergedStaticMetadata());
 
 		// labels from rule expression
-		Map<String, String> ruleExpressionLabels = getExpressionLabels(exchange, peerServiceName);
+		Set<String> expressionLabelKeys = routerRuleLabelResolver.getExpressionLabelKeys(MetadataContext.LOCAL_NAMESPACE,
+				MetadataContext.LOCAL_SERVICE, peerServiceName);
+		Map<String, String> ruleExpressionLabels = getExpressionLabels(exchange, expressionLabelKeys);
 		if (!CollectionUtils.isEmpty(ruleExpressionLabels)) {
 			labels.putAll(ruleExpressionLabels);
 		}
@@ -108,7 +110,7 @@ public class PolarisLoadBalancerClientFilter extends LoadBalancerClientFilter {
 		if (!CollectionUtils.isEmpty(routerLabelResolvers)) {
 			routerLabelResolvers.forEach(resolver -> {
 				try {
-					Map<String, String> customResolvedLabels = resolver.resolve(exchange);
+					Map<String, String> customResolvedLabels = resolver.resolve(exchange, expressionLabelKeys);
 					if (!CollectionUtils.isEmpty(customResolvedLabels)) {
 						labels.putAll(customResolvedLabels);
 					}
@@ -126,20 +128,17 @@ public class PolarisLoadBalancerClientFilter extends LoadBalancerClientFilter {
 
 		PolarisRouterContext routerContext = new PolarisRouterContext();
 
-		routerContext.setLabels(PolarisRouterContext.RULE_ROUTER_LABELS, labels);
-		routerContext.setLabels(PolarisRouterContext.TRANSITIVE_LABELS, transitiveLabels);
+		routerContext.putLabels(PolarisRouterContext.ROUTER_LABELS, labels);
+		routerContext.putLabels(PolarisRouterContext.TRANSITIVE_LABELS, transitiveLabels);
 
 		return routerContext;
 	}
 
-	private Map<String, String> getExpressionLabels(ServerWebExchange exchange, String peerServiceName) {
-		Set<String> labelKeys = routerRuleLabelResolver.getExpressionLabelKeys(MetadataContext.LOCAL_NAMESPACE,
-				MetadataContext.LOCAL_SERVICE, peerServiceName);
-
+	private Map<String, String> getExpressionLabels(ServerWebExchange exchange, Set<String> labelKeys) {
 		if (CollectionUtils.isEmpty(labelKeys)) {
 			return Collections.emptyMap();
 		}
 
-		return ExpressionLabelUtils.resolve(exchange, labelKeys);
+		return SpringWebExpressionLabelUtils.resolve(exchange, labelKeys);
 	}
 }

@@ -21,6 +21,10 @@
 		</dependency>
 		<dependency>
 			<groupId>com.tencent.cloud</groupId>
+			<artifactId>spring-cloud-tencent-rpc-enhancement</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.tencent.cloud</groupId>
 			<artifactId>spring-cloud-starter-tencent-metadata-transfer</artifactId>
 		</dependency>
 		<!-- Spring Cloud Tencent dependencies end -->
@@ -59,6 +63,30 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-netflix-zuul</artifactId>
+			<optional>true</optional>
+		</dependency>
+
+		<dependency>
+			<groupId>com.netflix.zuul</groupId>
+			<artifactId>zuul-core</artifactId>
+			<optional>true</optional>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-actuator</artifactId>
+			<optional>true</optional>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-actuator-autoconfigure</artifactId>
+			<optional>true</optional>
+		</dependency>
+
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
@@ -73,6 +101,12 @@
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>okhttp</artifactId>
 			<scope>test</scope>
 		</dependency>
 

@@ -21,18 +21,23 @@ package com.tencent.cloud.polaris.context.config;
 import com.tencent.cloud.polaris.context.ConditionalOnPolarisEnabled;
 import com.tencent.cloud.polaris.context.ModifyAddress;
 import com.tencent.cloud.polaris.context.ServiceRuleManager;
+import com.tencent.polaris.api.core.ConsumerAPI;
+import com.tencent.polaris.api.core.ProviderAPI;
 import com.tencent.polaris.api.exception.PolarisException;
 import com.tencent.polaris.client.api.SDKContext;
+import com.tencent.polaris.factory.api.DiscoveryAPIFactory;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * Autoconfiguration for Polaris {@link SDKContext}.
  *
  * @author Haotian Zhang
  */
+@Configuration(proxyBeanMethods = false)
 @ConditionalOnPolarisEnabled
 @EnableConfigurationProperties({PolarisContextProperties.class})
 public class PolarisContextAutoConfiguration {
@@ -46,8 +51,20 @@ public class PolarisContextAutoConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
-	public ModifyAddress polarisConfigModifier() {
-		return new ModifyAddress();
+	public ProviderAPI polarisProvider(SDKContext polarisContext) throws PolarisException {
+		return DiscoveryAPIFactory.createProviderAPIByContext(polarisContext);
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	public ConsumerAPI polarisConsumer(SDKContext polarisContext) throws PolarisException {
+		return DiscoveryAPIFactory.createConsumerAPIByContext(polarisContext);
+	}
+
+	@Bean
+	@ConditionalOnMissingBean
+	public ModifyAddress polarisConfigModifier(PolarisContextProperties properties) {
+		return new ModifyAddress(properties);
 	}
 
 	@Bean

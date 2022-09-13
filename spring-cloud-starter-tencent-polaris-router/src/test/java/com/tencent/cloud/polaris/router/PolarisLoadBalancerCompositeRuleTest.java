@@ -18,6 +18,7 @@
 
 package com.tencent.cloud.polaris.router;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -34,7 +35,6 @@ import com.netflix.loadbalancer.RetryRule;
 import com.netflix.loadbalancer.RoundRobinRule;
 import com.netflix.loadbalancer.Server;
 import com.netflix.loadbalancer.WeightedResponseTimeRule;
-import com.netflix.loadbalancer.ZoneAvoidanceRule;
 import com.tencent.cloud.common.metadata.MetadataContext;
 import com.tencent.cloud.common.metadata.MetadataContextHolder;
 import com.tencent.cloud.common.pojo.PolarisServer;
@@ -44,6 +44,10 @@ import com.tencent.cloud.polaris.loadbalancer.config.PolarisLoadBalancerProperti
 import com.tencent.cloud.polaris.router.config.properties.PolarisMetadataRouterProperties;
 import com.tencent.cloud.polaris.router.config.properties.PolarisNearByRouterProperties;
 import com.tencent.cloud.polaris.router.config.properties.PolarisRuleBasedRouterProperties;
+import com.tencent.cloud.polaris.router.interceptor.MetadataRouterRequestInterceptor;
+import com.tencent.cloud.polaris.router.interceptor.NearbyRouterRequestInterceptor;
+import com.tencent.cloud.polaris.router.interceptor.RuleBasedRouterRequestInterceptor;
+import com.tencent.cloud.polaris.router.spi.RouterRequestInterceptor;
 import com.tencent.polaris.api.pojo.DefaultInstance;
 import com.tencent.polaris.api.pojo.DefaultServiceInstances;
 import com.tencent.polaris.api.pojo.Instance;
@@ -76,7 +80,7 @@ import static org.mockito.Mockito.when;
 @RunWith(MockitoJUnitRunner.class)
 public class PolarisLoadBalancerCompositeRuleTest {
 
-	private static AtomicBoolean initTransitiveMetadata = new AtomicBoolean(false);
+	private static final AtomicBoolean initTransitiveMetadata = new AtomicBoolean(false);
 	@Mock
 	private PolarisLoadBalancerProperties polarisLoadBalancerProperties;
 	@Mock
@@ -87,35 +91,39 @@ public class PolarisLoadBalancerCompositeRuleTest {
 	private PolarisRuleBasedRouterProperties polarisRuleBasedRouterProperties;
 	@Mock
 	private RouterAPI routerAPI;
+
 	private IClientConfig config;
 	private String testNamespace = "testNamespace";
 	private String testCallerService = "testCallerService";
 	private String testCalleeService = "testCalleeService";
 
+	private final List<RouterRequestInterceptor> requestInterceptors = new ArrayList<>();
+
 	@Before
 	public void before() {
 		config = new DefaultClientConfigImpl();
 		config.loadDefaultValues();
+		requestInterceptors.add(new MetadataRouterRequestInterceptor(polarisMetadataRouterProperties));
+		requestInterceptors.add(new NearbyRouterRequestInterceptor(polarisNearByRouterProperties));
+		requestInterceptors.add(new RuleBasedRouterRequestInterceptor(polarisRuleBasedRouterProperties));
 	}
 
 	@Test
 	public void testGetDefaultLB() {
 		when(polarisLoadBalancerProperties.getStrategy()).thenReturn("");
 		PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-				polarisLoadBalancerProperties, polarisNearByRouterProperties,
-				polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+				polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 		AbstractLoadBalancerRule defaultRule = compositeRule.getRule();
 
-		Assert.assertTrue(defaultRule instanceof ZoneAvoidanceRule);
+		Assert.assertNull(defaultRule);
 	}
 
 	@Test
 	public void testRandomLB() {
 		when(polarisLoadBalancerProperties.getStrategy()).thenReturn(PolarisLoadBalancerCompositeRule.STRATEGY_RANDOM);
 		PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-				polarisLoadBalancerProperties, polarisNearByRouterProperties,
-				polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+				polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 		AbstractLoadBalancerRule lbRule = compositeRule.getRule();
 
@@ -126,8 +134,7 @@ public class PolarisLoadBalancerCompositeRuleTest {
 	public void testWeightLB() {
 		when(polarisLoadBalancerProperties.getStrategy()).thenReturn(PolarisLoadBalancerCompositeRule.STRATEGY_WEIGHT);
 		PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-				polarisLoadBalancerProperties, polarisNearByRouterProperties,
-				polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+				polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 		AbstractLoadBalancerRule lbRule = compositeRule.getRule();
 
@@ -138,8 +145,7 @@ public class PolarisLoadBalancerCompositeRuleTest {
 	public void testRetryLB() {
 		when(polarisLoadBalancerProperties.getStrategy()).thenReturn(PolarisLoadBalancerCompositeRule.STRATEGY_RETRY);
 		PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-				polarisLoadBalancerProperties, polarisNearByRouterProperties,
-				polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+				polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 		AbstractLoadBalancerRule lbRule = compositeRule.getRule();
 
@@ -150,8 +156,7 @@ public class PolarisLoadBalancerCompositeRuleTest {
 	public void testWeightedResponseTimeLB() {
 		when(polarisLoadBalancerProperties.getStrategy()).thenReturn(PolarisLoadBalancerCompositeRule.STRATEGY_RESPONSE_TIME_WEIGHTED);
 		PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-				polarisLoadBalancerProperties, polarisNearByRouterProperties,
-				polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+				polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 		AbstractLoadBalancerRule lbRule = compositeRule.getRule();
 
@@ -162,8 +167,7 @@ public class PolarisLoadBalancerCompositeRuleTest {
 	public void tesBestAvailableLB() {
 		when(polarisLoadBalancerProperties.getStrategy()).thenReturn(PolarisLoadBalancerCompositeRule.STRATEGY_BEST_AVAILABLE);
 		PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-				polarisLoadBalancerProperties, polarisNearByRouterProperties,
-				polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+				polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 		AbstractLoadBalancerRule lbRule = compositeRule.getRule();
 
@@ -174,8 +178,7 @@ public class PolarisLoadBalancerCompositeRuleTest {
 	public void tesRoundRobinLB() {
 		when(polarisLoadBalancerProperties.getStrategy()).thenReturn(PolarisLoadBalancerCompositeRule.STRATEGY_ROUND_ROBIN);
 		PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-				polarisLoadBalancerProperties, polarisNearByRouterProperties,
-				polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+				polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 		AbstractLoadBalancerRule lbRule = compositeRule.getRule();
 
@@ -186,8 +189,7 @@ public class PolarisLoadBalancerCompositeRuleTest {
 	public void testAvailabilityFilteringLB() {
 		when(polarisLoadBalancerProperties.getStrategy()).thenReturn(PolarisLoadBalancerCompositeRule.STRATEGY_AVAILABILITY_FILTERING);
 		PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-				polarisLoadBalancerProperties, polarisNearByRouterProperties,
-				polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+				polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 		AbstractLoadBalancerRule lbRule = compositeRule.getRule();
 
@@ -206,13 +208,18 @@ public class PolarisLoadBalancerCompositeRuleTest {
 			setTransitiveMetadata();
 
 			PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-					polarisLoadBalancerProperties, polarisNearByRouterProperties,
-					polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+					polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 			ServiceInstances serviceInstances = assembleServiceInstances();
 			PolarisRouterContext routerContext = assembleRouterContext();
 
-			ProcessRoutersRequest request = compositeRule.buildProcessRoutersRequest(serviceInstances, routerContext);
+			Map<String, String> oldRouterLabels = routerContext.getLabels(PolarisRouterContext.ROUTER_LABELS);
+			Map<String, String> newRouterLabels = new HashMap<>(oldRouterLabels);
+			newRouterLabels.put("system-metadata-router-keys", "k2");
+			routerContext.putLabels(PolarisRouterContext.ROUTER_LABELS, newRouterLabels);
+
+			ProcessRoutersRequest request = compositeRule.buildProcessRoutersBaseRequest(serviceInstances);
+			compositeRule.processRouterRequestInterceptors(request, routerContext);
 
 			Map<String, String> routerMetadata = request.getRouterMetadata(MetadataRouter.ROUTER_TYPE_METADATA);
 
@@ -236,13 +243,13 @@ public class PolarisLoadBalancerCompositeRuleTest {
 			setTransitiveMetadata();
 
 			PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-					polarisLoadBalancerProperties, polarisNearByRouterProperties,
-					polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+					polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 			ServiceInstances serviceInstances = assembleServiceInstances();
 			PolarisRouterContext routerContext = assembleRouterContext();
 
-			ProcessRoutersRequest request = compositeRule.buildProcessRoutersRequest(serviceInstances, routerContext);
+			ProcessRoutersRequest request = compositeRule.buildProcessRoutersBaseRequest(serviceInstances);
+			compositeRule.processRouterRequestInterceptors(request, routerContext);
 
 			Map<String, String> routerMetadata = request.getRouterMetadata(NearbyRouter.ROUTER_TYPE_NEAR_BY);
 
@@ -267,13 +274,13 @@ public class PolarisLoadBalancerCompositeRuleTest {
 			setTransitiveMetadata();
 
 			PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-					polarisLoadBalancerProperties, polarisNearByRouterProperties,
-					polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+					polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 			ServiceInstances serviceInstances = assembleServiceInstances();
 			PolarisRouterContext routerContext = assembleRouterContext();
 
-			ProcessRoutersRequest request = compositeRule.buildProcessRoutersRequest(serviceInstances, routerContext);
+			ProcessRoutersRequest request = compositeRule.buildProcessRoutersBaseRequest(serviceInstances);
+			compositeRule.processRouterRequestInterceptors(request, routerContext);
 
 			Map<String, String> routerMetadata = request.getRouterMetadata(RuleBasedRouter.ROUTER_TYPE_RULE_BASED);
 
@@ -298,8 +305,7 @@ public class PolarisLoadBalancerCompositeRuleTest {
 			setTransitiveMetadata();
 
 			PolarisLoadBalancerCompositeRule compositeRule = new PolarisLoadBalancerCompositeRule(routerAPI,
-					polarisLoadBalancerProperties, polarisNearByRouterProperties,
-					polarisMetadataRouterProperties, polarisRuleBasedRouterProperties, config);
+					polarisLoadBalancerProperties, config, requestInterceptors, null, null);
 
 			ProcessRoutersResponse assembleResponse = assembleProcessRoutersResponse();
 			when(routerAPI.processRouters(any())).thenReturn(assembleResponse);
@@ -339,8 +345,8 @@ public class PolarisLoadBalancerCompositeRuleTest {
 		Map<String, String> routerLabels = new HashMap<>();
 		routerLabels.put("k2", "v2");
 		routerLabels.put("k3", "v3");
-		routerContext.setLabels(PolarisRouterContext.TRANSITIVE_LABELS, transitiveLabels);
-		routerContext.setLabels(PolarisRouterContext.RULE_ROUTER_LABELS, routerLabels);
+		routerContext.putLabels(PolarisRouterContext.TRANSITIVE_LABELS, transitiveLabels);
+		routerContext.putLabels(PolarisRouterContext.ROUTER_LABELS, routerLabels);
 		return routerContext;
 	}
 

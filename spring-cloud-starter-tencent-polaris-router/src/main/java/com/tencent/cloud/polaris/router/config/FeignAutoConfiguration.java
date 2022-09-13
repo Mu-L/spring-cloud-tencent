@@ -20,11 +20,11 @@ package com.tencent.cloud.polaris.router.config;
 
 import java.util.List;
 
-import com.tencent.cloud.common.metadata.config.MetadataLocalProperties;
+import com.tencent.cloud.common.metadata.StaticMetadataManager;
 import com.tencent.cloud.polaris.router.RouterRuleLabelResolver;
 import com.tencent.cloud.polaris.router.feign.PolarisCachingSpringLoadBalanceFactory;
 import com.tencent.cloud.polaris.router.feign.RouterLabelFeignInterceptor;
-import com.tencent.cloud.polaris.router.spi.RouterLabelResolver;
+import com.tencent.cloud.polaris.router.spi.FeignRouterLabelResolver;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.cloud.netflix.ribbon.RibbonClients;
@@ -39,16 +39,16 @@ import org.springframework.lang.Nullable;
  *
  * @author lepdou 2022-06-10
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(name = {"org.springframework.cloud.openfeign.ribbon.FeignLoadBalancer"})
 @RibbonClients(defaultConfiguration = {FeignLoadBalancerConfiguration.class})
 public class FeignAutoConfiguration {
 
 	@Bean
-	public RouterLabelFeignInterceptor routerLabelInterceptor(@Nullable List<RouterLabelResolver> routerLabelResolvers,
-			MetadataLocalProperties metadataLocalProperties,
+	public RouterLabelFeignInterceptor routerLabelInterceptor(@Nullable List<FeignRouterLabelResolver> routerLabelResolvers,
+			StaticMetadataManager staticMetadataManager,
 			RouterRuleLabelResolver routerRuleLabelResolver) {
-		return new RouterLabelFeignInterceptor(routerLabelResolvers, metadataLocalProperties, routerRuleLabelResolver);
+		return new RouterLabelFeignInterceptor(routerLabelResolvers, staticMetadataManager, routerRuleLabelResolver);
 	}
 
 	@Bean
